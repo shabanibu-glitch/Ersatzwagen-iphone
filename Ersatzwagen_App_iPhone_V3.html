@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Ersatzwagen Übersicht</title>
+<style>
+:root{
+  --bg:#f5f6f8; --card:#fff; --text:#15171a; --muted:#6b7280; --line:#e5e7eb;
+  --accent:#0a84ff; --danger:#d92d20; --ok:#067647;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+.wrap{max-width:720px;margin:0 auto;padding:18px 14px 40px}
+h1{font-size:26px;margin:6px 0 4px}
+.sub{color:var(--muted);margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin:12px 0;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:560px){.grid{grid-template-columns:1fr}}
+label{display:block;font-size:13px;font-weight:600;margin:3px 0 5px}
+input,button{font:inherit}
+input{width:100%;padding:12px;border:1px solid #d0d5dd;border-radius:11px;background:white}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+button{border:0;border-radius:11px;padding:11px 14px;font-weight:700;cursor:pointer}
+.primary{background:var(--accent);color:white}
+.secondary{background:#eef2f7;color:#111}
+.danger{background:#fff1f0;color:var(--danger)}
+.ok{background:#ecfdf3;color:var(--ok)}
+.toprow{display:flex;gap:8px;align-items:center}
+.toprow input{flex:1}
+.badge{display:inline-block;padding:5px 8px;border-radius:999px;font-size:12px;font-weight:700}
+.badge.out{background:#fff4e5;color:#9a5b00}
+.badge.in{background:#ecfdf3;color:#067647}
+.item{border-top:1px solid var(--line);padding:13px 0}
+.item:first-child{border-top:0}
+.item h3{margin:0 0 5px;font-size:17px}
+.meta{color:#4b5563;font-size:14px;line-height:1.45}
+.small{font-size:12px;color:var(--muted)}
+.empty{text-align:center;color:var(--muted);padding:18px 4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Ersatzwagen</h1>
+  <p class="sub">Wer hatte wann welches Fahrzeug?</p>
+
+  <div class="card">
+    <h2 style="font-size:18px;margin:0 0 12px">Neue Ausleihe</h2>
+    <div class="grid">
+      <div>
+        <label>Ersatzwagen</label>
+        <input id="car" placeholder="z. B. Honda Jazz / ZH 123456">
+      </div>
+      <div>
+        <label>Kunde</label>
+        <input id="customer" placeholder="Vorname Nachname">
+      </div>
+      <div>
+        <label>Telefon (optional)</label>
+        <input id="phone" type="tel" placeholder="z. B. 079 123 45 67">
+      </div>
+      <div>
+        <label>Übergabe</label>
+        <input id="from" type="datetime-local">
+      </div>
+      <div>
+        <label>Rückgabe</label>
+        <input id="to" type="datetime-local">
+      </div>
+    </div>
+    <div class="actions">
+      <button class="primary" onclick="saveEntry()">Speichern</button>
+      <button class="secondary" onclick="clearForm()">Leeren</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="toprow">
+      <input id="search" placeholder="Suche nach Kennzeichen, Kunde oder Datum" oninput="render()">
+      <button class="secondary" onclick="document.getElementById('search').value='';render()">×</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:18px;margin:0 0 8px">Übersicht</h2>
+    <div id="list"></div>
+  </div>
+
+  <div class="small">Lokale iPhone-Version · Daten werden nur auf diesem Gerät im Browser gespeichert. Tipp: In Safari über Teilen → Zum Home-Bildschirm hinzufügen.</div>
+</div>
+
+<script>
+let entries = JSON.parse(localStorage.getItem('ersatzwagen_entries') || '[]');
+
+function today(){
+  const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,16);
+}
+document.getElementById('from').value = today();
+
+function esc(s){
+  return String(s ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+}
+function fmt(d){
+  if(!d) return 'offen';
+  const x=new Date(d); return x.toLocaleString('de-CH',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+function saveData(){
+  localStorage.setItem('ersatzwagen_entries', JSON.stringify(entries));
+}
+function clearForm(){
+  car.value=''; customer.value=''; phone.value=''; from.value=today(); to.value='';
+}
+function saveEntry(){
+  const c=car.value.trim(), k=customer.value.trim(), p=phone.value.trim(), f=from.value, t=to.value;
+  if(!c || !k || !f){
+    alert('Bitte Kennzeichen/Fahrzeug, Kunde und Übergabedatum ausfüllen.');
+    return;
+  }
+  entries.unshift({id:Date.now(),car:c,customer:k,phone:p,from:f,to:t});
+  saveData(); clearForm(); render();
+}
+function setReturned(id){
+  const e=entries.find(x=>x.id===id);
+  if(e){ e.to=today(); saveData(); render(); }
+}
+function removeEntry(id){
+  if(confirm('Eintrag wirklich löschen?')){
+    entries=entries.filter(x=>x.id!==id);
+    saveData(); render();
+  }
+}
+function render(){
+  const q=search.value.trim().toLowerCase();
+  const filtered=entries.filter(e=>{
+    const hay=[e.car,e.customer,e.phone,e.from,e.to,fmt(e.from),fmt(e.to)].join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+  if(!filtered.length){
+    list.innerHTML='<div class="empty">Noch keine passenden Einträge.</div>';
+    return;
+  }
+  list.innerHTML=filtered.map(e=>{
+    const out=!e.to;
+    return `<div class="item">
+      <h3>${esc(e.car)} <span class="badge ${out?'out':'in'}">${out?'unterwegs':'zurück'}</span></h3>
+      <div class="meta"><b>${esc(e.customer)}</b>${e.phone?` · ${esc(e.phone)}`:''}<br>
+      Übergabe: ${fmt(e.from)}<br>
+      Rückgabe: ${fmt(e.to)}</div>
+      <div class="actions">
+        ${out?`<button class="ok" onclick="setReturned(${e.id})">Heute zurück</button>`:''}
+        <button class="danger" onclick="removeEntry(${e.id})">Löschen</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+render();
+</script>
+</body>
+</html>
